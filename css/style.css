@@ -5,18 +5,16 @@ body {
 .root {
   width: 100vw;
   height: 100vh;
+  background-color: #212121;
 }
 
 .rocket {
   position: absolute;
   transition: all 256ms linear;
   transform-origin: center bottom;
-  background-color: #BADA55;
 }
 
-.mars {
+.planet {
   position: absolute;
-  border-radius: 32px;
-  background-color: red;
   transform: translate(-50%, 50%);
 }
