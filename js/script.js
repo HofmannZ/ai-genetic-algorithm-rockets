@@ -121,6 +121,16 @@ class Rocket {
         this.crashed = true;
       }
 
+      for (let i = 0; i < mission.asteroids.length; i++) {
+        if (this.x > mission.asteroids[i].x - mission.asteroids[i].width / 2
+            && this.x < mission.asteroids[i].x + mission.asteroids[i].width / 2
+            && this.y > mission.asteroids[i].y - mission.asteroids[i].height / 2
+            && this.y < mission.asteroids[i].y + mission.asteroids[i].height / 2
+        ) {
+          this.crashed = true;
+        }
+      }
+
       if (this.x > mission.target.x - mission.target.width / 2
           && this.x < mission.target.x + mission.target.width / 2
           && this.y > mission.target.y - mission.target.height / 2
@@ -146,7 +156,7 @@ class Rocket {
     this.fitness = xOffset + yOffset;
 
     if (this.crashed) {
-      this.fitness /= 4;
+      this.fitness /= 8;
     }
 
     if (this.completed) {
@@ -206,9 +216,12 @@ class Generation {
     }
 
     // Set the rocket's fitness to a 0 to 100 scale based on the maximun fitnes of the generation.
+    console.log('max fit', maxFitness);
     for (let i = 0; i < this.populationSize; i++) {
+      console.log('fit', this.rockets[i].fitness);
       this.rockets[i].fitness /= maxFitness;
       this.rockets[i].fitness *= 100;
+      console.log('fit per', this.rockets[i].fitness);
     }
 
     this.breedingPool = [];
@@ -367,6 +380,12 @@ class Mission {
 
     this.target = target;
     this.earth = new Planet(window.innerWidth / 2, 0, 'earth.svg');
+    this.asteroids = [
+      new Planet(window.innerWidth / 2 - 64, window.innerHeight / 2, 'asteroid.svg'),
+      new Planet(window.innerWidth / 3 * 2, window.innerHeight / 4, 'asteroid.svg'),
+      new Planet(window.innerWidth / 4 * 1, window.innerHeight / 4 * 1, 'asteroid.svg'),
+      new Planet(window.innerWidth / 3, window.innerHeight / 4 * 3, 'asteroid.svg'),
+    ];
 
     this.populationSize = populationSize;
     this.generation;
@@ -401,6 +420,9 @@ class Mission {
       // Setup the planets.
       this.target.render();
       this.earth.render();
+      for (let i = 0; i < this.asteroids.length; i++) {
+        this.asteroids[i].render();
+      }
 
       // Evolve the generation.
       this.generation.crossover();
@@ -426,6 +448,9 @@ class Mission {
     // Display initial rockets and mars.
     this.target.render();
     this.earth.render();
+    for (let i = 0; i < this.asteroids.length; i++) {
+      this.asteroids[i].render();
+    }
     this.hud.render();
 
     // Create an inital random rocket generation.
@@ -440,7 +465,7 @@ class Mission {
 */
 const space = document.querySelector('.space');
 const target = new Planet(window.innerWidth / 2, window.innerHeight - 126, false, 126);
-const mission = new Mission(target, 24, 32, 0.5, 0.01);
+const mission = new Mission(target, 24, 8, 0.5, 0.01);
 
 mission.initialize();
 
