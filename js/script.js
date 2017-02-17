@@ -465,7 +465,7 @@ class Mission {
 */
 const space = document.querySelector('.space');
 const target = new Planet(window.innerWidth / 2, window.innerHeight - 126, false, 126);
-const mission = new Mission(target, 24, 8, 0.5, 0.01);
+const mission = new Mission(target, 24, 32, 0.5, 0.01);
 
 mission.initialize();
 
