@@ -300,6 +300,13 @@ class HUD {
     const hud = document.createElement('article');
     hud.classList.add('hud');
 
+    if (mission.completed) {
+      const completed = document.createElement('p');
+      completed.classList.add('hud__item');
+      completed.innerHTML = `Mission complete!`;
+      hud.appendChild(completed);
+    }
+
     const lifeSpan = document.createElement('p');
     lifeSpan.classList.add('hud__item');
     lifeSpan.innerHTML = `Life span: ${mission.lifeSpan}`;
@@ -378,6 +385,8 @@ class Mission {
       // Check if mission is completed.
       this.completed = this.generation.completed();
       if (this.completed) {
+        // Update the HUD.
+        this.hud.render();
         return true;
       }
 
