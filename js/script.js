@@ -1,35 +1,14 @@
-const root = document.querySelector('.root');
-
 /**
-*   Plannet
+*   Gene   *
 */
-class Planet {
-  constructor(x, y, src = 'planet.svg', size = 64) {
-    this.x = x;
-    this.y = y;
-
-    this.width = size;
-    this.height = size;
-
-    this.src = src;
+class Gene {
+  constructor(adjustment, thrust) {
+    this.adjustment = adjustment;
+    this.thrust = thrust;
   }
 
-  render() {
-    // Create the plannet element.
-    const element = document.createElement('img');
-    element.src = `assets/${this.src}`;
-    element.classList.add('planet');
-
-    // Set the correct plannet size.
-    element.style.width = `${this.width.toString()}px`;
-    element.style.height = `${this.height.toString()}px`;
-
-    // Set the correct plannet position.
-    element.style.left = `${this.x.toString()}px`;
-    element.style.bottom = `${this.y.toString()}px`;
-
-    // Add the plannet to the dom.
-    root.appendChild(element);
+  mutate() {
+    this.adjustment = Math.round(22.5 - Math.random() * 45);
   }
 };
 
@@ -38,12 +17,38 @@ class Planet {
 *   DNA   *
 */
 class DNA {
-  constructor() {
-    this.genes = [];
+  constructor(genes) {
+    if (genes) {
+      this.genes = genes;
+    } else {
+      this.genes = [];
+
+      for (let j = 0; j < mission.lifeSpan; j++) {
+        this.genes.push(new Gene(Math.round(22.5 - Math.random() * 45), 32));
+      }
+    }
   }
 
-  add(gene) {
-    this.genes.push(gene);
+  crossover(partner) {
+    const newGenes = [];
+
+    for (let i = 0; i < this.genes.length; i++) {
+      if (Math.random() < mission.crossoverProbability) {
+        newGenes[i] = this.genes[i];
+      } else {
+        newGenes[i] = partner.genes[i];
+      }
+    }
+
+    return new DNA(newGenes);
+  }
+
+  mutate() {
+    for (let i = 0; i < this.genes.length; i++) {
+      if (Math.random() < mission.mutationProbability) {
+        this.genes[i].mutate();
+      }
+    }
   }
 };
 
@@ -51,19 +56,25 @@ class DNA {
 /**
 *   Rocket   *
 *   Echt rocket has it's own DNA containing an array of objects with two properties:
-*   angle ( the new new angle of the rocket )
+*   adjustment ( the adjustment angle of the rocket )
 *   and
 *   thrust ( the force of when propelled ).
 */
 class Rocket {
-  constructor(x, y, dna) {
-    this.x = x + 4;
-    this.y = y;
+  constructor(dna = new DNA()) {
+    this.x = mission.startingCoord.x;
+    this.y = mission.startingCoord.y;
 
     this.width = 24;
     this.height = 32;
 
+    this.angle = 0;
+
     this.dna = dna;
+    this.fitness = 0;
+
+    this.crashed = false;
+    this.completed = false;
 
     // Create a DOM element for the rocket.
     this.element = document.createElement('img');
@@ -83,167 +94,314 @@ class Rocket {
     this.propel = this.propel.bind(this);
   }
 
-  propel(cycle) {
-    // Get the current gene from the dna.
-    const currentGene = this.dna.genes[cycle];
+  propel() {
+    if (!this.crashed && !this.completed) {
+      // Get the current gene from the dna.
+      const currentGene = this.dna.genes[mission.count];
 
-    // Apply the rocket's angle.
-    this.element.style.transform = `translateX(-50%) rotate(${currentGene.angle}deg)`;
+      // Calculate the new angle based on the ajustment.
+      this.angle += currentGene.adjustment;
 
-    // Calculate the rigth x and y increments based on the rocket's angle and speed.
-    this.x += Math.sin(Math.PI / 180 * currentGene.angle) * currentGene.thrust;
-    this.y += Math.cos(Math.PI / 180 *  currentGene.angle) * currentGene.thrust;
+      // Calculate the rigth x and y increments based on the rocket's adjustment and speed.
+      this.x += Math.sin(Math.PI / 180 * this.angle) * currentGene.thrust;
+      this.y += Math.cos(Math.PI / 180 *  this.angle) * currentGene.thrust;
 
-    // Move the rocket to the new coordinate.
-    this.element.style.left = `${this.x.toString()}px`;
-    this.element.style.bottom = `${this.y.toString()}px`;
+      // Apply the rocket's adjustment.
+      this.element.style.transform = `translateX(-50%) rotate(${this.angle}deg)`;
+
+      // Move the rocket to the new coordinate.
+      this.element.style.left = `${this.x.toString()}px`;
+      this.element.style.bottom = `${this.y.toString()}px`;
+
+      if (this.x < 0 || this.x > window.innerWidth || this.y < 0 || this.y > window.innerHeight) {
+        this.crached = true;
+      }
+
+      if (this.x > mission.target.x - mission.target.width / 2
+          && this.x < mission.target.x + mission.target.width / 2
+          && this.y > mission.target.y - mission.target.height / 2
+          && this.y < mission.target.y + mission.target.height / 2
+      ) {
+        this.completed = true;
+      }
+    }
   }
 
-  fitness(target, maxOffset) {
-    // Calculate the fitness of the rocket on a scale of 0 to 100.
-    let xOffset = target.x - this.x;
+  calculateFitness() {
+    // Calculate the fitness of the rocket on a scale of 1 to 100.
+    let xOffset = mission.target.x - this.x;
     if (xOffset < 0) {
       xOffset *= -1;
     }
 
-    let yOffset = target.y - this.y;
+    let yOffset = mission.target.y - this.y;
     if (yOffset < 0) {
       yOffset *= -1;
     }
 
-    const offset = xOffset + yOffset;
+    this.fitness = xOffset + yOffset;
 
-    return (offset / maxOffset) * 100;
+    if (this.crashed) {
+      this.fitness /= 8;
+    }
+
+    if (this.completed) {
+      this.fitness *= 16;
+    }
+
+    this.fitness = Math.round(this.fitness);
   }
 
   render() {
-    root.appendChild(this.element);
+    space.appendChild(this.element);
   }
 };
 
 
 /**
+*   Generation   *
+*   Each genaration has a population of rockets
+*   the flight time for each launch is defined as lifespan.
+*/
+class Generation {
+  constructor(populationSize) {
+    this.populationSize = populationSize;
+    this.rockets = [];
+    this.breedingPool = [];
+
+    for (let i = 0; i < this.populationSize; i++) {
+      this.rockets[i] = new Rocket();
+    }
+  }
+
+  propel(count) {
+    for (let i = 0; i < this.populationSize; i++) {
+      this.rockets[i].propel(count);
+    }
+  }
+
+  generateBreedingPool() {
+    let maxFitness = 0;
+
+    // Evaluate the fitness of each rocket in the population.
+    for (let i = 0; i < this.populationSize; i++) {
+      const fitness = this.rockets[i].calculateFitness();
+
+      if (this.rockets[i].fitness > maxFitness) {
+        maxFitness = this.rockets[i].fitness;
+      }
+    }
+
+    // Set the rocket's fitness to a 0 to 100 scale based on the maximun fitnes of the generation.
+    for (let i = 0; i < this.populationSize; i++) {
+      this.rockets[i].fitness /= maxFitness;
+      this.rockets[i].fitness *= 100;
+    }
+
+    this.breedingPool = [];
+
+    for (let i = 0; i < this.populationSize; i++) {
+      for (let j = 0; j < this.rockets[i].fitness; j++) {
+        this.breedingPool.push(this.rockets[i]);
+      }
+    }
+  }
+
+  crossover() {
+    const evolvedRockets = [];
+
+    this.generateBreedingPool();
+
+    for (let i = 0; i < this.populationSize; i++) {
+      // Select two random parrenta from the breeding pool.
+      const parrentOneIndex = Math.floor(Math.random() * this.breedingPool.length);
+      const parrentTwoIndex = Math.floor(Math.random() * this.breedingPool.length);
+
+      const parrentOne = this.breedingPool[parrentOneIndex];
+      const parrentTwo = this.breedingPool[parrentTwoIndex];
+
+      let childDna;
+
+      // Crossover the dna form the strongest to the weakest parerent. And add it to the dna set.
+      if (parrentOne.fitness >= parrentTwo.fitness) {
+        childDna = parrentOne.dna.crossover(parrentTwo.dna, mission.crossoverProbability);
+      } else {
+        childDna = parrentTwo.dna.crossover(parrentOne.dna, mission.crossoverProbability);
+      }
+
+      // Mutate the new child based on the mutation probability.
+      childDna.mutate(mission.mutationProbability);
+      evolvedRockets[i] = new Rocket(childDna);
+    }
+
+    this.rockets = evolvedRockets;
+  }
+
+  render() {
+    for (let i = 0; i < this.populationSize; i++) {
+      this.rockets[i].render();
+    }
+  }
+};
+
+
+/**
+*   Plannet   *
+*/
+class Planet {
+  constructor(x, y, src, size = 64) {
+    this.x = x;
+    this.y = y;
+
+    this.width = size;
+    this.height = size;
+
+    if (src) {
+      this.src = src;
+    } else {
+      this.src = 'planet.svg'
+    }
+  }
+
+  render() {
+    // Create the plannet element.
+    const element = document.createElement('img');
+    element.src = `assets/${this.src}`;
+    element.classList.add('planet');
+
+    // Set the correct plannet size.
+    element.style.width = `${this.width.toString()}px`;
+    element.style.height = `${this.height.toString()}px`;
+
+    // Set the correct plannet position.
+    element.style.left = `${this.x.toString()}px`;
+    element.style.bottom = `${this.y.toString()}px`;
+
+    // Add the plannet to the dom.
+    space.appendChild(element);
+  }
+};
+
+
+/**
+*   Heads Up Display   *
+*/
+class HUD {
+  render() {
+    const hud = document.createElement('article');
+    hud.classList.add('hud');
+
+    const lifeSpan = document.createElement('p');
+    lifeSpan.classList.add('hud__item');
+    lifeSpan.innerHTML = `Life span: ${mission.lifeSpan}`;
+    hud.appendChild(lifeSpan);
+
+    const generationCount = document.createElement('p');
+    generationCount.classList.add('hud__item');
+    generationCount.innerHTML = `Generation: ${mission.generationCount}`;
+    hud.appendChild(generationCount);
+
+    const populationSize = document.createElement('p');
+    populationSize.classList.add('hud__item');
+    populationSize.innerHTML = `Population size: ${mission.populationSize} rockets`;
+    hud.appendChild(populationSize);
+
+    const crossoverProbability = document.createElement('p');
+    crossoverProbability.classList.add('hud__item');
+    crossoverProbability.innerHTML = `Crossover probability: ${mission.crossoverProbability * 100}%`;
+    hud.appendChild(crossoverProbability);
+
+    const mutationProbability = document.createElement('p');
+    mutationProbability.classList.add('hud__item');
+    mutationProbability.innerHTML = `Mutation probability: ${mission.mutationProbability * 100}%`;
+    hud.appendChild(mutationProbability);
+
+    space.appendChild(hud);
+  }
+}
+
+
+/**
 *   Mission   *
-*   Each mission consits of N amount of launches,
-*   the flight time for each launch is defined in cycles.
 */
 class Mission {
   constructor(
-    numberOfRockets,
-    cycleLimit,
-    planet
+    target,
+    lifeSpan,
+    populationSize,
+    crossoverProbability,
+    mutationProbability
   ) {
     this.started = false;
     this.startingCoord = {
       x: window.innerWidth / 2,
-      y: 0,
+      y: 32,
     };
 
-    this.rockets = [];
-    this.numberOfRockets = numberOfRockets;
+    this.count = 0;
+    this.lifeSpan = lifeSpan;
 
-    this.cycle = 0;
-    this.cycleLimit = cycleLimit;
+    this.crossoverProbability = crossoverProbability;
+    this.mutationProbability = mutationProbability;
 
-    this.planet = planet;
+    this.target = target;
     this.earth = new Planet(window.innerWidth / 2, 0, 'earth.svg');
 
+    this.populationSize = populationSize;
+    this.generation;
+    this.generationCount = 1;
+
+    this.hud = new HUD();
+
     // The maximum distance offset for the fitness function.
-    this.maxXOffset = this.planet.x - this.planet.width / 2;
-    this.maxYOffset = this.planet.y - this.planet.height / 2;
+    this.maxXOffset = this.target.x - this.target.width / 2;
+    this.maxYOffset = this.target.y - this.target.height / 2;
     this.maxOffset = this.maxXOffset + this.maxYOffset;
 
     // Binding the context to the mothods.
-    this.propelRockets = this.propelRockets.bind(this);
+    this.run = this.run.bind(this);
     this.initialize = this.initialize.bind(this);
   }
 
-  createRockets(dnaSet) {
-    // Create N amount of rockets, each rocket starts at a random angle.
-    for (let i = 0; i < this.numberOfRockets; i++) {
-      this.rockets[i] = new Rocket(
-        this.startingCoord.x,
-        this.startingCoord.y,
-        dnaSet[i]
-      );
-
-      // Render the rocket to the DOM.
-      this.rockets[i].render();
-    }
-  }
-
-  propelRockets() {
-    if (this.cycle === this.cycleLimit) {
+  run() {
+    if (this.count === this.lifeSpan) {
       // Clear the DOM.
-      this.cycle = 0;
-      root.innerHTML = '';
+      this.count = 0;
+      space.innerHTML = '';
 
-      //
-      this.evaluateRockets();
-
-      // Generate a new dna set by geneticly recombining the dna based on the rocket's fitness.
-      const evolvedDna = this.geneticlyRecombineRockets();
-
-      // Try again with improved DNA.
-
-      this.planet.render();
+      // Setup the planets.
+      this.target.render();
       this.earth.render();
-      this.createRockets(evolvedDna);
-      this.propelRockets();
+
+      // Evolve the generation.
+      this.generation.crossover();
+      this.generation.render();
+      this.generationCount++;
+
+      // Update the HUD.
+      this.hud.render();
+
+      // Run this method recursifly.
+      this.run();
     } else {
-      // Propel the rockets.
-      for (let i = 0; i < this.numberOfRockets; i++) {
-        this.rockets[i].propel(this.cycle);
-      }
+      // Propel all the rockets.
+      this.generation.propel(this.count);
 
-      // Propel recursifly.
-      this.cycle++;
-      setTimeout(this.propelRockets, 256);
+      // Run this method recursifly.
+      this.count++;
+      setTimeout(this.run, 256);
     }
-  }
-
-  evaluateRockets() {
-    // Evaluates the fitness of the rockets based on their distance to the new plannet.
-    for (let i = 0; i < this.numberOfRockets; i++) {
-      console.log('fitness: ', this.rockets[i].fitness(this.planet, this.maxOffset));
-    }
-  }
-
-  geneticlyRecombineRockets() {
-    // TODO: Generate this form the best performing rockets.
-    const dnaSet = [];
-    for (let i = 0; i < this.numberOfRockets; i++) {
-      const dna = new DNA();
-      for (let j = 0; j < this.cycleLimit; j++) {
-        dna.add({
-          angle: 0,
-          thrust: Math.round(Math.random() * 64),
-        });
-      }
-      dnaSet[i] = dna;
-    }
-    return dnaSet;
   }
 
   initialize() {
     // Display initial rockets and mars.
-    this.planet.render();
+    this.target.render();
     this.earth.render();
+    this.hud.render();
 
-    // Generate random DNA for the first launch.
-    const dnaSet = [];
-    for (let i = 0; i < this.numberOfRockets; i++) {
-      const dna = new DNA();
-      for (let j = 0; j < this.cycleLimit; j++) {
-        dna.add({
-          angle: Math.round(Math.random() * 360),
-          thrust: Math.round(Math.random() * 8),
-        });
-      }
-      dnaSet[i] = dna;
-    }
-
-    this.createRockets(dnaSet);
+    // Create an inital random rocket generation.
+    this.generation = new Generation(this.populationSize);
+    this.generation.render();
   }
 };
 
@@ -251,16 +409,17 @@ class Mission {
 /**
 *   Mission Control   *
 */
-const planet = new Planet(window.innerWidth / 2, window.innerHeight - 64);
-const mission = new Mission(4, 16, planet);
+const space = document.querySelector('.space');
+const target = new Planet(window.innerWidth / 2, window.innerHeight - 126, false, 126);
+const mission = new Mission(target, 24, 32, 0.5, 0.01);
 
 mission.initialize();
 
 // Start mission when you click on the screen.
 window.addEventListener('click', () => {
-  // Only launch if not launched before.
+  // Only launch if not launched before to avoid bugs.
   if (!mission.started) {
     mission.started = true;
-    mission.propelRockets();
+    mission.run();
   }
 });

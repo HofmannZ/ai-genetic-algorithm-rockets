@@ -1,11 +1,18 @@
 body {
   margin: 0;
+  overflow: hidden;
 }
 
-.root {
+.space {
   width: 100vw;
   height: 100vh;
   background-color: #212121;
+  overflow: hidden;
+}
+
+.planet {
+  position: absolute;
+  transform: translate(-50%, 50%);
 }
 
 .rocket {
@@ -14,7 +21,25 @@ body {
   transform-origin: center bottom;
 }
 
-.planet {
+.hud {
   position: absolute;
-  transform: translate(-50%, 50%);
+  left: 32px;
+  bottom: 24px;
+}
+
+.hud__item {
+  color: rgba(236, 239, 241, .9);
+  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  font-weight: 300;
+  margin: .5em 0;
+}
+
+footer {
+  position: absolute;
+  right: 32px;
+  bottom: 24px;
+  color: rgba(236, 239, 241, .9);
+  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  font-weight: 300;
+  margin: .5em 0;
 }
