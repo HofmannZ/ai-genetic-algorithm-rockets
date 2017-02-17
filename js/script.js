@@ -174,6 +174,15 @@ class Generation {
     }
   }
 
+  completed() {
+    for (let i = 0; i < this.populationSize; i++) {
+      if (!this.rockets[i].completed) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   propel(count) {
     for (let i = 0; i < this.populationSize; i++) {
       this.rockets[i].propel(count);
@@ -337,6 +346,7 @@ class Mission {
       x: window.innerWidth / 2,
       y: 32,
     };
+    this.completed = false;
 
     this.count = 0;
     this.lifeSpan = lifeSpan;
@@ -365,6 +375,12 @@ class Mission {
 
   run() {
     if (this.count === this.lifeSpan) {
+      // Check if mission is completed.
+      this.completed = this.generation.completed();
+      if (this.completed) {
+        return true;
+      }
+
       // Clear the DOM.
       this.count = 0;
       space.innerHTML = '';
