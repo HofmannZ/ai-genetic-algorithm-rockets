@@ -113,8 +113,12 @@ class Rocket {
       this.element.style.left = `${this.x.toString()}px`;
       this.element.style.bottom = `${this.y.toString()}px`;
 
-      if (this.x < 0 || this.x > window.innerWidth || this.y < 0 || this.y > window.innerHeight) {
-        this.crached = true;
+      if (this.x < 32
+          || this.x > window.innerWidth - 32
+          || this.y < 32
+          || this.y > window.innerHeight - 32
+      ) {
+        this.crashed = true;
       }
 
       if (this.x > mission.target.x - mission.target.width / 2
@@ -142,11 +146,11 @@ class Rocket {
     this.fitness = xOffset + yOffset;
 
     if (this.crashed) {
-      this.fitness /= 8;
+      this.fitness /= 4;
     }
 
     if (this.completed) {
-      this.fitness *= 16;
+      this.fitness *= 8;
     }
 
     this.fitness = Math.round(this.fitness);

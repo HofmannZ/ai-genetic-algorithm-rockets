@@ -6,8 +6,7 @@ body {
 .space {
   width: 100vw;
   height: 100vh;
-  background-color: #212121;
-  overflow: hidden;
+  background-color: rgb(33, 33, 33);
 }
 
 .planet {
@@ -17,7 +16,7 @@ body {
 
 .rocket {
   position: absolute;
-  transition: all 256ms linear;
+  transition: all 256ms linear, transform 256ms ease-in-out;
   transform-origin: center bottom;
 }
 
@@ -32,6 +31,10 @@ body {
   font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
   font-weight: 300;
   margin: .5em 0;
+}
+
+.hud__item.hud__item_complete {
+  color: rgba(76, 175, 80, .9);
 }
 
 footer {
