@@ -24,7 +24,7 @@ class DNA {
       this.genes = [];
 
       for (let j = 0; j < mission.lifeSpan; j++) {
-        this.genes.push(new Gene(Math.round(22.5 - Math.random() * 45), 32));
+        this.genes.push(new Gene(22.5 - Math.random() * 45, 32));
       }
     }
   }
@@ -142,7 +142,7 @@ class Rocket {
   }
 
   calculateFitness() {
-    // Calculate the fitness of the rocket on a scale of 1 to 100.
+    // Calculate the fitness of the rocket.
     let xOffset = mission.target.x - this.x;
     if (xOffset < 0) {
       xOffset *= -1;
@@ -153,17 +153,15 @@ class Rocket {
       yOffset *= -1;
     }
 
-    this.fitness = xOffset + yOffset;
+    this.fitness = 1 / (xOffset + yOffset);
 
     if (this.crashed) {
-      this.fitness /= 8;
+      this.fitness /= 2;
     }
 
     if (this.completed) {
-      this.fitness *= 8;
+      this.fitness *= 4;
     }
-
-    this.fitness = Math.round(this.fitness);
   }
 
   render() {
@@ -208,7 +206,7 @@ class Generation {
 
     // Evaluate the fitness of each rocket in the population.
     for (let i = 0; i < this.populationSize; i++) {
-      const fitness = this.rockets[i].calculateFitness();
+      this.rockets[i].calculateFitness();
 
       if (this.rockets[i].fitness > maxFitness) {
         maxFitness = this.rockets[i].fitness;
@@ -216,12 +214,9 @@ class Generation {
     }
 
     // Set the rocket's fitness to a 0 to 100 scale based on the maximun fitnes of the generation.
-    console.log('max fit', maxFitness);
     for (let i = 0; i < this.populationSize; i++) {
-      console.log('fit', this.rockets[i].fitness);
       this.rockets[i].fitness /= maxFitness;
       this.rockets[i].fitness *= 100;
-      console.log('fit per', this.rockets[i].fitness);
     }
 
     this.breedingPool = [];
@@ -382,6 +377,7 @@ class Mission {
     this.earth = new Planet(window.innerWidth / 2, 0, 'earth.svg');
     this.asteroids = [
       new Planet(window.innerWidth / 2 - 64, window.innerHeight / 2, 'asteroid.svg'),
+      new Planet(window.innerWidth / 2 + 32, window.innerHeight / 2 - 32, 'asteroid.svg'),
       new Planet(window.innerWidth / 3 * 2, window.innerHeight / 4, 'asteroid.svg'),
       new Planet(window.innerWidth / 4 * 1, window.innerHeight / 4 * 1, 'asteroid.svg'),
       new Planet(window.innerWidth / 3, window.innerHeight / 4 * 3, 'asteroid.svg'),
