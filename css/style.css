@@ -1,6 +1,7 @@
 body {
   margin: 0;
   overflow: hidden;
+  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
 }
 
 .space {
@@ -28,7 +29,6 @@ body {
 
 .hud__item {
   color: rgba(236, 239, 241, .9);
-  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
   font-weight: 300;
   margin: .5em 0;
 }
@@ -42,7 +42,6 @@ footer {
   right: 32px;
   bottom: 24px;
   color: rgba(236, 239, 241, .9);
-  font-family: "HelveticaNeue-Light", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
   font-weight: 300;
   margin: .5em 0;
 }

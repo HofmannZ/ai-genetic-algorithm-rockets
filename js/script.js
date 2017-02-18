@@ -61,7 +61,9 @@ class DNA {
 *   thrust ( the force of when propelled ).
 */
 class Rocket {
-  constructor(dna = new DNA()) {
+  constructor(id, dna = new DNA()) {
+    this.id = id;
+
     this.x = mission.startingCoord.x;
     this.y = mission.startingCoord.y;
 
@@ -69,6 +71,7 @@ class Rocket {
     this.height = 32;
 
     this.angle = 0;
+    this.totalAdjustments = [dna.genes[0].adjustment];
 
     this.dna = dna;
     this.fitness = 0;
@@ -113,14 +116,6 @@ class Rocket {
       this.element.style.left = `${this.x.toString()}px`;
       this.element.style.bottom = `${this.y.toString()}px`;
 
-      if (this.x < 32
-          || this.x > window.innerWidth - 32
-          || this.y < 32
-          || this.y > window.innerHeight - 32
-      ) {
-        this.crashed = true;
-      }
-
       for (let i = 0; i < mission.asteroids.length; i++) {
         if (this.x > mission.asteroids[i].x - mission.asteroids[i].width / 2
             && this.x < mission.asteroids[i].x + mission.asteroids[i].width / 2
@@ -141,6 +136,12 @@ class Rocket {
     }
   }
 
+  totalAdjustment(geneIndex) {
+    this.totalAdjustments[geneIndex] = this.totalAdjustments[geneIndex - 1] + this.dna.genes[geneIndex].adjustment;
+
+    return this.totalAdjustments[geneIndex];
+  }
+
   calculateFitness() {
     // Calculate the fitness of the rocket.
     let xOffset = mission.target.x - this.x;
@@ -153,15 +154,7 @@ class Rocket {
       yOffset *= -1;
     }
 
-    this.fitness = 1 / (xOffset + yOffset);
-
-    if (this.crashed) {
-      this.fitness /= 2;
-    }
-
-    if (this.completed) {
-      this.fitness *= 4;
-    }
+    this.fitness = (window.innerWidth + window.innerHeight) - (xOffset + yOffset);
   }
 
   render() {
@@ -182,7 +175,7 @@ class Generation {
     this.breedingPool = [];
 
     for (let i = 0; i < this.populationSize; i++) {
-      this.rockets[i] = new Rocket();
+      this.rockets[i] = new Rocket(i);
     }
   }
 
@@ -201,11 +194,12 @@ class Generation {
     }
   }
 
-  generateBreedingPool() {
+  evaluate() {
+    let i;
     let maxFitness = 0;
 
     // Evaluate the fitness of each rocket in the population.
-    for (let i = 0; i < this.populationSize; i++) {
+    for (i = 0; i < this.populationSize; i++) {
       this.rockets[i].calculateFitness();
 
       if (this.rockets[i].fitness > maxFitness) {
@@ -213,33 +207,78 @@ class Generation {
       }
     }
 
-    // Set the rocket's fitness to a 0 to 100 scale based on the maximun fitnes of the generation.
-    for (let i = 0; i < this.populationSize; i++) {
-      this.rockets[i].fitness /= maxFitness;
-      this.rockets[i].fitness *= 100;
-    }
+    for (i = 0; i < this.populationSize; i++) {
 
+      // Level the rocket's fitness to a 0 to 10 scale based on the maximun fitness of the generation.
+      this.rockets[i].fitness /= maxFitness;
+      this.rockets[i].fitness *= 10;
+
+      // Adjust the rocket's fitness.
+      if (this.rockets[i].crashed) {
+        this.rockets[i].fitness /= 8;
+      }
+
+      if (this.rockets[i].completed) {
+        this.rockets[i].fitness *= 8;
+      }
+    }
+  }
+
+  generateBreedingPool() {
     this.breedingPool = [];
 
     for (let i = 0; i < this.populationSize; i++) {
+
+      // Add the rocket for it's fitness amount of times to the breeding pool.
       for (let j = 0; j < this.rockets[i].fitness; j++) {
         this.breedingPool.push(this.rockets[i]);
       }
     }
   }
 
+  matchMaking(parrentOne, iteration) {
+    const parrentTwoIndex = Math.floor(Math.random() * this.breedingPool.length);
+    const parrentTwo = this.breedingPool[parrentTwoIndex];
+
+    // Check if all items in the breeding pool are checked.
+    if (iteration < this.breedingPool.length) {
+
+      // Check if if the parrents are actualy diffend.
+      if (parrentOne.id !== parrentTwo.id) {
+        for (let i = 1; i < mission.lifeSpan; i++) {
+          let difference = parrentOne.totalAdjustment(i) - parrentTwo.totalAdjustment(i);
+          if (difference < 0) {
+            difference *= -1;
+          }
+
+          // If the difference is to big try with an other partner.
+          if (difference > mission.maxAllowedDifference) {
+            return this.matchMaking(parrentOne, ++iteration);
+          }
+        }
+      } else {
+        return this.matchMaking(parrentOne, ++iteration);
+      }
+    }
+
+    // Returns a matching partner or if none exists returns a random partner.
+    return parrentTwo;
+  }
+
   crossover() {
     const evolvedRockets = [];
 
+    this.evaluate();
     this.generateBreedingPool();
 
     for (let i = 0; i < this.populationSize; i++) {
-      // Select two random parrenta from the breeding pool.
-      const parrentOneIndex = Math.floor(Math.random() * this.breedingPool.length);
-      const parrentTwoIndex = Math.floor(Math.random() * this.breedingPool.length);
 
+      // Select a random parrent from the breeding pool.
+      const parrentOneIndex = Math.floor(Math.random() * this.breedingPool.length);
       const parrentOne = this.breedingPool[parrentOneIndex];
-      const parrentTwo = this.breedingPool[parrentTwoIndex];
+
+      // Find a rocket with it's ajustments within the allowed margin of ajustments for each point in time.
+      const parrentTwo = this.matchMaking(parrentOne, 0);
 
       let childDna;
 
@@ -250,9 +289,10 @@ class Generation {
         childDna = parrentTwo.dna.crossover(parrentOne.dna, mission.crossoverProbability);
       }
 
+      evolvedRockets[i] = new Rocket(i, childDna);
+
       // Mutate the new child based on the mutation probability.
-      childDna.mutate(mission.mutationProbability);
-      evolvedRockets[i] = new Rocket(childDna);
+      evolvedRockets[i].dna.mutate(mission.mutationProbability);
     }
 
     this.rockets = evolvedRockets;
@@ -285,6 +325,7 @@ class Planet {
   }
 
   render() {
+
     // Create the plannet element.
     const element = document.createElement('img');
     element.src = `assets/${this.src}`;
@@ -315,6 +356,7 @@ class HUD {
     if (mission.completed) {
       const completed = document.createElement('p');
       completed.classList.add('hud__item');
+      completed.classList.add('hud__item_complete');
       completed.innerHTML = `Mission complete!`;
       hud.appendChild(completed);
     }
@@ -333,6 +375,11 @@ class HUD {
     populationSize.classList.add('hud__item');
     populationSize.innerHTML = `Population size: ${mission.populationSize} rockets`;
     hud.appendChild(populationSize);
+
+    const maxAllowedDifference = document.createElement('p');
+    maxAllowedDifference.classList.add('hud__item');
+    maxAllowedDifference.innerHTML = `Maximum adjustment difference: ${mission.maxAllowedDifference}`;
+    hud.appendChild(maxAllowedDifference);
 
     const crossoverProbability = document.createElement('p');
     crossoverProbability.classList.add('hud__item');
@@ -357,6 +404,7 @@ class Mission {
     target,
     lifeSpan,
     populationSize,
+    maxAllowedDifference,
     crossoverProbability,
     mutationProbability
   ) {
@@ -372,6 +420,8 @@ class Mission {
 
     this.crossoverProbability = crossoverProbability;
     this.mutationProbability = mutationProbability;
+
+    this.maxAllowedDifference = maxAllowedDifference;
 
     this.target = target;
     this.earth = new Planet(window.innerWidth / 2, 0, 'earth.svg');
@@ -400,14 +450,16 @@ class Mission {
   }
 
   run() {
+
+    // Check if mission is completed.
+    this.completed = this.generation.completed();
+    if (this.completed) {
+      // Update the HUD.
+      this.hud.render();
+      return true;
+    }
+
     if (this.count === this.lifeSpan) {
-      // Check if mission is completed.
-      this.completed = this.generation.completed();
-      if (this.completed) {
-        // Update the HUD.
-        this.hud.render();
-        return true;
-      }
 
       // Clear the DOM.
       this.count = 0;
@@ -461,7 +513,7 @@ class Mission {
 */
 const space = document.querySelector('.space');
 const target = new Planet(window.innerWidth / 2, window.innerHeight - 126, false, 126);
-const mission = new Mission(target, 24, 32, 0.5, 0.01);
+const mission = new Mission(target, 24, 32, 8, 0.5, 0.01);
 
 mission.initialize();
 
