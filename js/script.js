@@ -34,9 +34,11 @@ class DNA {
 
     for (let i = 0; i < this.genes.length; i++) {
       if (Math.random() < mission.crossoverProbability) {
-        newGenes[i] = this.genes[i];
+        const { adjustment, thrust } = this.genes[i];
+        newGenes[i] =  new Gene(adjustment, thrust);
       } else {
-        newGenes[i] = partner.genes[i];
+        const { adjustment, thrust } = partner.genes[i];
+        newGenes[i] =  new Gene(adjustment, thrust);
       }
     }
 
@@ -155,6 +157,15 @@ class Rocket {
     }
 
     this.fitness = (window.innerWidth + window.innerHeight) - (xOffset + yOffset);
+
+    // Adjust the rocket's fitness.
+    if (this.crashed) {
+      this.fitness /= 8;
+    }
+
+    if (this.completed) {
+      this.fitness *= 8;
+    }
   }
 
   render() {
@@ -173,6 +184,7 @@ class Generation {
     this.populationSize = populationSize;
     this.rockets = [];
     this.breedingPool = [];
+    this.averageFitness = 0;
 
     for (let i = 0; i < this.populationSize; i++) {
       this.rockets[i] = new Rocket(i);
@@ -196,6 +208,7 @@ class Generation {
 
   evaluate() {
     let i;
+    let totalFitness = 0;
     let maxFitness = 0;
 
     // Evaluate the fitness of each rocket in the population.
@@ -209,19 +222,14 @@ class Generation {
 
     for (i = 0; i < this.populationSize; i++) {
 
-      // Level the rocket's fitness to a 0 to 10 scale based on the maximun fitness of the generation.
+      // Level the rocket's fitness to a 0 to 100 scale based on the maximun fitness of the generation.
       this.rockets[i].fitness /= maxFitness;
-      this.rockets[i].fitness *= 10;
+      this.rockets[i].fitness *= 100;
 
-      // Adjust the rocket's fitness.
-      if (this.rockets[i].crashed) {
-        this.rockets[i].fitness /= 8;
-      }
-
-      if (this.rockets[i].completed) {
-        this.rockets[i].fitness *= 8;
-      }
+      totalFitness += this.rockets[i].fitness;
     }
+
+    this.averageFitness = totalFitness / this.populationSize;
   }
 
   generateBreedingPool() {
@@ -243,21 +251,17 @@ class Generation {
     // Check if all items in the breeding pool are checked.
     if (iteration < this.breedingPool.length) {
 
-      // Check if if the parrents are actualy diffend.
-      if (parrentOne.id !== parrentTwo.id) {
-        for (let i = 1; i < mission.lifeSpan; i++) {
-          let difference = parrentOne.totalAdjustment(i) - parrentTwo.totalAdjustment(i);
-          if (difference < 0) {
-            difference *= -1;
-          }
-
-          // If the difference is to big try with an other partner.
-          if (difference > mission.maxAllowedDifference) {
-            return this.matchMaking(parrentOne, ++iteration);
-          }
+      // Check if all the genes of the parrents are actualy within the difference margin.
+      for (let i = 1; i < mission.lifeSpan; i++) {
+        let difference = parrentOne.totalAdjustment(i) - parrentTwo.totalAdjustment(i);
+        if (difference < 0) {
+          difference *= -1;
         }
-      } else {
-        return this.matchMaking(parrentOne, ++iteration);
+
+        // If the difference is to big try with an other partner.
+        if (difference > mission.maxAllowedDifference) {
+          return this.matchMaking(parrentOne, ++iteration);
+        }
       }
     }
 
@@ -371,6 +375,11 @@ class HUD {
     generationCount.innerHTML = `Generation: ${mission.generationCount}`;
     hud.appendChild(generationCount);
 
+    const averageFitness = document.createElement('p');
+    averageFitness.classList.add('hud__item');
+    averageFitness.innerHTML = `Average fitness: ${Math.round(mission.generation.averageFitness)}%`;
+    hud.appendChild(averageFitness);
+
     const populationSize = document.createElement('p');
     populationSize.classList.add('hud__item');
     populationSize.innerHTML = `Population size: ${mission.populationSize} rockets`;
@@ -426,7 +435,7 @@ class Mission {
     this.target = target;
     this.earth = new Planet(window.innerWidth / 2, 0, 'earth.svg');
     this.asteroids = [
-      new Planet(window.innerWidth / 2 - 64, window.innerHeight / 2, 'asteroid.svg'),
+      new Planet(window.innerWidth / 2 - 32, window.innerHeight / 2, 'asteroid.svg'),
       new Planet(window.innerWidth / 2 + 32, window.innerHeight / 2 - 32, 'asteroid.svg'),
       new Planet(window.innerWidth / 3 * 2, window.innerHeight / 4, 'asteroid.svg'),
       new Planet(window.innerWidth / 4 * 1, window.innerHeight / 4 * 1, 'asteroid.svg'),
@@ -499,11 +508,12 @@ class Mission {
     for (let i = 0; i < this.asteroids.length; i++) {
       this.asteroids[i].render();
     }
-    this.hud.render();
 
     // Create an inital random rocket generation.
     this.generation = new Generation(this.populationSize);
     this.generation.render();
+
+    this.hud.render();
   }
 };
 
