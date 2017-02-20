@@ -45,9 +45,9 @@ class DNA {
     return new DNA(newGenes);
   }
 
-  mutate() {
+  mutate(mutationProbability) {
     for (let i = 0; i < this.genes.length; i++) {
-      if (Math.random() < mission.mutationProbability) {
+      if (Math.random() < mutationProbability) {
         this.genes[i].mutate();
       }
     }
@@ -183,8 +183,9 @@ class Generation {
   constructor(populationSize) {
     this.populationSize = populationSize;
     this.rockets = [];
-    this.breedingPool = [];
     this.averageFitness = 0;
+    this.mutationProbability = 0;
+    this.maxFitness = 0;
 
     for (let i = 0; i < this.populationSize; i++) {
       this.rockets[i] = new Rocket(i);
@@ -209,58 +210,66 @@ class Generation {
   evaluate() {
     let i;
     let totalFitness = 0;
-    let maxFitness = 0;
+
+    this.maxFitness = 0;
 
     // Evaluate the fitness of each rocket in the population.
     for (i = 0; i < this.populationSize; i++) {
       this.rockets[i].calculateFitness();
 
-      if (this.rockets[i].fitness > maxFitness) {
-        maxFitness = this.rockets[i].fitness;
+      if (this.rockets[i].fitness > this.maxFitness) {
+        this.maxFitness = this.rockets[i].fitness;
       }
     }
 
     for (i = 0; i < this.populationSize; i++) {
 
       // Level the rocket's fitness to a 0 to 100 scale based on the maximun fitness of the generation.
-      this.rockets[i].fitness /= maxFitness;
+      this.rockets[i].fitness /= this.maxFitness;
       this.rockets[i].fitness *= 100;
 
       totalFitness += this.rockets[i].fitness;
     }
 
     this.averageFitness = totalFitness / this.populationSize;
+
+    this.mutationProbability = 1 / this.averageFitness -0.01;
   }
 
-  generateBreedingPool() {
-    this.breedingPool = [];
+  pickParrent(i) {
+    const parrentIndex = Math.floor(Math.random() * this.populationSize);
+    const parrent = this.rockets[parrentIndex];
 
-    for (let i = 0; i < this.populationSize; i++) {
-
-      // Add the rocket for it's fitness amount of times to the breeding pool.
-      for (let j = 0; j < this.rockets[i].fitness; j++) {
-        this.breedingPool.push(this.rockets[i]);
-      }
+    // Avoid callstack limit error.
+    if (i > Math.pow(2, 14) / 2) {
+      return parrent;
     }
+
+    // Check if parrent is suitable based on the probebility of it's fitness.
+    if ((Math.random() * this.maxFitness) < parrent.fitness) {
+      return parrent;
+    }
+
+    // Else try to find an other parrent.
+    return this.pickParrent(++i);
   }
 
-  matchMaking(parrentOne, iteration) {
-    const parrentTwoIndex = Math.floor(Math.random() * this.breedingPool.length);
-    const parrentTwo = this.breedingPool[parrentTwoIndex];
+  matchMaking(parrentOne, i) {
+    const parrentTwo = this.pickParrent(0);
 
-    // Check if all items in the breeding pool are checked.
-    if (iteration < this.breedingPool.length) {
+    // Avoid callstack limit error.
+    if (i < Math.pow(2, 14)) {
 
       // Check if all the genes of the parrents are actualy within the difference margin.
-      for (let i = 1; i < mission.lifeSpan; i++) {
-        let difference = parrentOne.totalAdjustment(i) - parrentTwo.totalAdjustment(i);
+      for (let j = 1; j < mission.lifeSpan; j++) {
+        let difference = parrentOne.totalAdjustment(j) - parrentTwo.totalAdjustment(j);
         if (difference < 0) {
           difference *= -1;
         }
 
         // If the difference is to big try with an other partner.
         if (difference > mission.maxAllowedDifference) {
-          return this.matchMaking(parrentOne, ++iteration);
+          return this.matchMaking(parrentOne, ++i);
         }
       }
     }
@@ -273,13 +282,11 @@ class Generation {
     const evolvedRockets = [];
 
     this.evaluate();
-    this.generateBreedingPool();
 
     for (let i = 0; i < this.populationSize; i++) {
 
-      // Select a random parrent from the breeding pool.
-      const parrentOneIndex = Math.floor(Math.random() * this.breedingPool.length);
-      const parrentOne = this.breedingPool[parrentOneIndex];
+      // Select a random parrent.
+      const parrentOne = this.pickParrent(0);
 
       // Find a rocket with it's ajustments within the allowed margin of ajustments for each point in time.
       const parrentTwo = this.matchMaking(parrentOne, 0);
@@ -296,7 +303,7 @@ class Generation {
       evolvedRockets[i] = new Rocket(i, childDna);
 
       // Mutate the new child based on the mutation probability.
-      evolvedRockets[i].dna.mutate(mission.mutationProbability);
+      evolvedRockets[i].dna.mutate(this.mutationProbability);
     }
 
     this.rockets = evolvedRockets;
@@ -377,7 +384,7 @@ class HUD {
 
     const averageFitness = document.createElement('p');
     averageFitness.classList.add('hud__item');
-    averageFitness.innerHTML = `Average fitness: ${Math.round(mission.generation.averageFitness)}%`;
+    averageFitness.innerHTML = `Average fitness: ${mission.generation.averageFitness.toFixed(2)}%`;
     hud.appendChild(averageFitness);
 
     const populationSize = document.createElement('p');
@@ -387,17 +394,17 @@ class HUD {
 
     const maxAllowedDifference = document.createElement('p');
     maxAllowedDifference.classList.add('hud__item');
-    maxAllowedDifference.innerHTML = `Maximum adjustment difference: ${mission.maxAllowedDifference}`;
+    maxAllowedDifference.innerHTML = `Maximum adjustment difference: ${mission.maxAllowedDifference} pixels`;
     hud.appendChild(maxAllowedDifference);
 
     const crossoverProbability = document.createElement('p');
     crossoverProbability.classList.add('hud__item');
-    crossoverProbability.innerHTML = `Crossover probability: ${mission.crossoverProbability * 100}%`;
+    crossoverProbability.innerHTML = `DNA crossover probability: ${(mission.crossoverProbability * 100).toFixed(2)}%`;
     hud.appendChild(crossoverProbability);
 
     const mutationProbability = document.createElement('p');
     mutationProbability.classList.add('hud__item');
-    mutationProbability.innerHTML = `Mutation probability: ${mission.mutationProbability * 100}%`;
+    mutationProbability.innerHTML = `DNA mutation probability: ${(mission.generation.mutationProbability * 100).toFixed(2)}%`;
     hud.appendChild(mutationProbability);
 
     space.appendChild(hud);
@@ -414,8 +421,7 @@ class Mission {
     lifeSpan,
     populationSize,
     maxAllowedDifference,
-    crossoverProbability,
-    mutationProbability
+    crossoverProbability
   ) {
     this.started = false;
     this.startingCoord = {
@@ -428,7 +434,6 @@ class Mission {
     this.lifeSpan = lifeSpan;
 
     this.crossoverProbability = crossoverProbability;
-    this.mutationProbability = mutationProbability;
 
     this.maxAllowedDifference = maxAllowedDifference;
 
@@ -439,7 +444,10 @@ class Mission {
       new Planet(window.innerWidth / 2 + 32, window.innerHeight / 2 - 32, 'asteroid.svg'),
       new Planet(window.innerWidth / 3 * 2, window.innerHeight / 4, 'asteroid.svg'),
       new Planet(window.innerWidth / 4 * 1, window.innerHeight / 4 * 1, 'asteroid.svg'),
-      new Planet(window.innerWidth / 3, window.innerHeight / 4 * 3, 'asteroid.svg'),
+      new Planet(window.innerWidth / 2 + 96, window.innerHeight / 2, 'asteroid.svg'),
+      new Planet(window.innerWidth / 2 - 96, window.innerHeight / 2 - 32, 'asteroid.svg'),
+      new Planet(window.innerWidth / 2 - 160, window.innerHeight / 2, 'asteroid.svg'),
+      new Planet(window.innerWidth / 2 + 160, window.innerHeight / 2 - 32, 'asteroid.svg'),
     ];
 
     this.populationSize = populationSize;
@@ -523,7 +531,7 @@ class Mission {
 */
 const space = document.querySelector('.space');
 const target = new Planet(window.innerWidth / 2, window.innerHeight - 126, false, 126);
-const mission = new Mission(target, 24, 32, 8, 0.5, 0.01);
+const mission = new Mission(target, 24, 32, window.innerWidth + window.innerHeight, 0.5);
 
 mission.initialize();
 
