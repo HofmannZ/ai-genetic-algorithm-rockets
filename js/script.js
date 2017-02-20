@@ -81,6 +81,8 @@ class Rocket {
     this.crashed = false;
     this.completed = false;
 
+    this.timeToComplete = 1;
+
     // Create a DOM element for the rocket.
     this.element = document.createElement('img');
     this.element.src = 'assets/rocket.svg';
@@ -134,6 +136,7 @@ class Rocket {
           && this.y < mission.target.y + mission.target.height / 2
       ) {
         this.completed = true;
+        this.timeToComplete = mission.count;
       }
     }
   }
@@ -164,7 +167,7 @@ class Rocket {
     }
 
     if (this.completed) {
-      this.fitness *= 8;
+      this.fitness *= (((mission.lifeSpan - this.timeToComplete) + 1) / mission.lifeSpan * 16) + 1;
     }
   }
 
@@ -254,30 +257,6 @@ class Generation {
     return this.pickParrent(++i);
   }
 
-  matchMaking(parrentOne, i) {
-    const parrentTwo = this.pickParrent(0);
-
-    // Avoid callstack limit error.
-    if (i < Math.pow(2, 14)) {
-
-      // Check if all the genes of the parrents are actualy within the difference margin.
-      for (let j = 1; j < mission.lifeSpan; j++) {
-        let difference = parrentOne.totalAdjustment(j) - parrentTwo.totalAdjustment(j);
-        if (difference < 0) {
-          difference *= -1;
-        }
-
-        // If the difference is to big try with an other partner.
-        if (difference > mission.maxAllowedDifference) {
-          return this.matchMaking(parrentOne, ++i);
-        }
-      }
-    }
-
-    // Returns a matching partner or if none exists returns a random partner.
-    return parrentTwo;
-  }
-
   crossover() {
     const evolvedRockets = [];
 
@@ -285,11 +264,9 @@ class Generation {
 
     for (let i = 0; i < this.populationSize; i++) {
 
-      // Select a random parrent.
+      // Select two random parrents.
       const parrentOne = this.pickParrent(0);
-
-      // Find a rocket with it's ajustments within the allowed margin of ajustments for each point in time.
-      const parrentTwo = this.matchMaking(parrentOne, 0);
+      const parrentTwo = this.pickParrent(0);
 
       let childDna;
 
@@ -392,11 +369,6 @@ class HUD {
     populationSize.innerHTML = `Population size: ${mission.populationSize} rockets`;
     hud.appendChild(populationSize);
 
-    const maxAllowedDifference = document.createElement('p');
-    maxAllowedDifference.classList.add('hud__item');
-    maxAllowedDifference.innerHTML = `Maximum adjustment difference: ${mission.maxAllowedDifference} pixels`;
-    hud.appendChild(maxAllowedDifference);
-
     const crossoverProbability = document.createElement('p');
     crossoverProbability.classList.add('hud__item');
     crossoverProbability.innerHTML = `DNA crossover probability: ${(mission.crossoverProbability * 100).toFixed(2)}%`;
@@ -407,7 +379,27 @@ class HUD {
     mutationProbability.innerHTML = `DNA mutation probability: ${(mission.generation.mutationProbability * 100).toFixed(2)}%`;
     hud.appendChild(mutationProbability);
 
+    const playButton = document.createElement('img');
+    playButton.src = `assets/play-button.svg`;
+    playButton.classList.add('play-button');
+
     space.appendChild(hud);
+
+    if (mission.started) {
+      playButton.classList.add('play-button_hidden');
+    }
+
+    space.appendChild(playButton);
+
+    // Start mission when you click on the play button.
+    playButton.addEventListener('click', () => {
+      // Only launch if not launched before to avoid bugs.
+      if (!mission.started) {
+        mission.started = true;
+        playButton.classList.add('play-button_hidden');
+        mission.run();
+      }
+    });
   }
 }
 
@@ -420,7 +412,6 @@ class Mission {
     target,
     lifeSpan,
     populationSize,
-    maxAllowedDifference,
     crossoverProbability
   ) {
     this.started = false;
@@ -435,20 +426,9 @@ class Mission {
 
     this.crossoverProbability = crossoverProbability;
 
-    this.maxAllowedDifference = maxAllowedDifference;
-
     this.target = target;
     this.earth = new Planet(window.innerWidth / 2, 0, 'earth.svg');
-    this.asteroids = [
-      new Planet(window.innerWidth / 2 - 32, window.innerHeight / 2, 'asteroid.svg'),
-      new Planet(window.innerWidth / 2 + 32, window.innerHeight / 2 - 32, 'asteroid.svg'),
-      new Planet(window.innerWidth / 3 * 2, window.innerHeight / 4, 'asteroid.svg'),
-      new Planet(window.innerWidth / 4 * 1, window.innerHeight / 4 * 1, 'asteroid.svg'),
-      new Planet(window.innerWidth / 2 + 96, window.innerHeight / 2, 'asteroid.svg'),
-      new Planet(window.innerWidth / 2 - 96, window.innerHeight / 2 - 32, 'asteroid.svg'),
-      new Planet(window.innerWidth / 2 - 160, window.innerHeight / 2, 'asteroid.svg'),
-      new Planet(window.innerWidth / 2 + 160, window.innerHeight / 2 - 32, 'asteroid.svg'),
-    ];
+    this.asteroids = [];
 
     this.populationSize = populationSize;
     this.generation;
@@ -509,6 +489,34 @@ class Mission {
     }
   }
 
+  addAsteroid(x, y) {
+    this.asteroids.push(new Planet(x, y, 'asteroid.svg'));
+
+    for (let i = 0; i < this.asteroids.length; i++) {
+      this.asteroids[i].render();
+    }
+  }
+
+  removeAsteroid(index) {
+    this.asteroids.splice(index, 1);
+
+    // Clear the DOM.
+    space.innerHTML = '';
+
+    // Setup the planets and astroids.
+    this.target.render();
+    this.earth.render();
+    for (let i = 0; i < this.asteroids.length; i++) {
+      this.asteroids[i].render();
+    }
+
+    // Evolve the generation.
+    this.generation.render();
+
+    // Update the HUD.
+    this.hud.render();
+  }
+
   initialize() {
     // Display initial rockets and mars.
     this.target.render();
@@ -530,16 +538,55 @@ class Mission {
 *   Mission Control   *
 */
 const space = document.querySelector('.space');
+const settings = document.querySelector('.settings');
+const saveSettings = document.querySelector('.settings__save');
 const target = new Planet(window.innerWidth / 2, window.innerHeight - 126, false, 126);
-const mission = new Mission(target, 24, 32, window.innerWidth + window.innerHeight, 0.5);
+let settingsSaved = false;
+let mission;
 
-mission.initialize();
+saveSettings.addEventListener('click', () => {
+  const lifeSpan = Number(document.querySelector('input[name="lifeSpan"]').value);
+  const populationSize = Number(document.querySelector('input[name="populationSize"]').value);
+  const mutationProbelility = Number(document.querySelector('input[name="mutationProbelility"]').value);
+
+
+  mission = new Mission(target, lifeSpan, populationSize, mutationProbelility);
+  mission.initialize();
+  settings.classList.add('settings_hidden');
+  settingsSaved = true;
+});
+
 
 // Start mission when you click on the screen.
-window.addEventListener('click', () => {
-  // Only launch if not launched before to avoid bugs.
-  if (!mission.started) {
-    mission.started = true;
-    mission.run();
+window.addEventListener('click', (event) => {
+  if (settingsSaved) {
+    const actualY = window.innerHeight - event.y;
+
+    if (!(event.x > window.innerWidth / 2 - 32
+        && event.x < window.innerWidth / 2 + 32
+        && actualY > window.innerHeight / 2 - 32
+        && actualY < window.innerHeight / 2 + 32)
+    ) {
+      mission.addAsteroid(event.x, actualY);
+    }
+  }
+});
+
+// Start mission when you click on the screen.
+window.addEventListener('contextmenu', (event) => {
+  if (settingsSaved) {
+    const actualY = window.innerHeight - event.y;
+
+    event.preventDefault();
+
+    for (let i =  0; i < mission.asteroids.length; i++) {
+      if (event.x > mission.asteroids[i].x - mission.asteroids[i].width / 2
+          && event.x < mission.asteroids[i].x + mission.asteroids[i].width / 2
+          && actualY > mission.asteroids[i].y - mission.asteroids[i].height / 2
+          && actualY < mission.asteroids[i].y + mission.asteroids[i].height / 2
+      ) {
+        mission.removeAsteroid(i);
+      }
+    }
   }
 });
