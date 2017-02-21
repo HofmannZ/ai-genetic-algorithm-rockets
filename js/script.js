@@ -167,7 +167,7 @@ class Rocket {
     }
 
     if (this.completed) {
-      this.fitness *= (((mission.lifeSpan - this.timeToComplete) + 1) / mission.lifeSpan * 16) + 1;
+      this.fitness *= (((mission.lifeSpan - this.timeToComplete) + 1) / mission.lifeSpan * 16) + 8;
     }
   }
 
@@ -193,6 +193,8 @@ class Generation {
     for (let i = 0; i < this.populationSize; i++) {
       this.rockets[i] = new Rocket(i);
     }
+
+    this.fitestRocket = this.rockets[0];
   }
 
   completed() {
@@ -222,7 +224,10 @@ class Generation {
 
       if (this.rockets[i].fitness > this.maxFitness) {
         this.maxFitness = this.rockets[i].fitness;
+        this.fitestRocket = this.rockets[i];
       }
+
+      totalFitness += this.rockets[i].fitness;
     }
 
     for (i = 0; i < this.populationSize; i++) {
@@ -230,11 +235,9 @@ class Generation {
       // Level the rocket's fitness to a 0 to 100 scale based on the maximun fitness of the generation.
       this.rockets[i].fitness /= this.maxFitness;
       this.rockets[i].fitness *= 100;
-
-      totalFitness += this.rockets[i].fitness;
     }
 
-    this.averageFitness = totalFitness / this.populationSize;
+    this.averageFitness = (totalFitness / this.populationSize) / this.maxFitness * 100;
 
     this.mutationProbability = 1 / this.averageFitness -0.01;
   }
@@ -262,10 +265,14 @@ class Generation {
 
     this.evaluate();
 
+    // Make one rocket king of the generation and let him be parrent of all children.
+    // evolvedRockets[0] = new Rocket(0, new DNA(this.fitestRocket.dna.genes));
+
     for (let i = 0; i < this.populationSize; i++) {
 
       // Select two random parrents.
       const parrentOne = this.pickParrent(0);
+      // const parrentOne = evolvedRockets[0];
       const parrentTwo = this.pickParrent(0);
 
       let childDna;
@@ -447,6 +454,7 @@ class Mission {
   }
 
   run() {
+    let i;
 
     // Check if mission is completed.
     this.completed = this.generation.completed();
@@ -465,7 +473,7 @@ class Mission {
       // Setup the planets.
       this.target.render();
       this.earth.render();
-      for (let i = 0; i < this.asteroids.length; i++) {
+      for (i = 0; i < this.asteroids.length; i++) {
         this.asteroids[i].render();
       }
 
@@ -485,7 +493,7 @@ class Mission {
 
       // Run this method recursifly.
       this.count++;
-      setTimeout(this.run, 256);
+      setTimeout(this.run, 126);
     }
   }
 

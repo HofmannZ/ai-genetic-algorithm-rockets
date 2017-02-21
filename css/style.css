@@ -17,7 +17,7 @@ body {
 
 .rocket {
   position: absolute;
-  transition: all 256ms linear, transform 256ms ease-in-out;
+  transition: all 126ms linear, transform 126ms ease-in-out;
   transform-origin: center bottom;
 }
 
