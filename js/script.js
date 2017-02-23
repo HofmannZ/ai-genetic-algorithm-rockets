@@ -163,11 +163,11 @@ class Rocket {
 
     // Adjust the rocket's fitness.
     if (this.crashed) {
-      this.fitness /= 8;
+      this.fitness /= 4;
     }
 
     if (this.completed) {
-      this.fitness *= (((mission.lifeSpan - this.timeToComplete) + 1) / mission.lifeSpan * 16) + 8;
+      this.fitness *= ((1 / this.timeToComplete) * mission.lifeSpan) + 8;
     }
   }
 
@@ -230,14 +230,14 @@ class Generation {
       totalFitness += this.rockets[i].fitness;
     }
 
+    this.averageFitness = (totalFitness / this.populationSize) / this.maxFitness * 100;
+
     for (i = 0; i < this.populationSize; i++) {
 
       // Level the rocket's fitness to a 0 to 100 scale based on the maximun fitness of the generation.
       this.rockets[i].fitness /= this.maxFitness;
       this.rockets[i].fitness *= 100;
     }
-
-    this.averageFitness = (totalFitness / this.populationSize) / this.maxFitness * 100;
 
     this.mutationProbability = 1 / this.averageFitness -0.01;
   }
@@ -252,7 +252,7 @@ class Generation {
     }
 
     // Check if parrent is suitable based on the probebility of it's fitness.
-    if ((Math.random() * this.maxFitness) < parrent.fitness) {
+    if ((Math.random() * 100) < parrent.fitness) {
       return parrent;
     }
 
