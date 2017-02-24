@@ -8,7 +8,7 @@ class Gene {
   }
 
   mutate() {
-    this.adjustment = Math.round(22.5 - Math.random() * 45);
+    this.adjustment += Math.round((22.5 - Math.random() * 45) / 4);
   }
 };
 
@@ -30,19 +30,20 @@ class DNA {
   }
 
   crossover(partner) {
-    const newGenes = [];
+    const childGenesOne = [];
+    const childGenesTwo = [];
 
     for (let i = 0; i < this.genes.length; i++) {
       if (Math.random() < mission.crossoverProbability) {
-        const { adjustment, thrust } = this.genes[i];
-        newGenes[i] =  new Gene(adjustment, thrust);
+        childGenesOne[i] = new Gene(this.genes[i].adjustment, this.genes[i].thrust);
+        childGenesTwo[i] = new Gene(partner.genes[i].adjustment, partner.genes[i].thrust);
       } else {
-        const { adjustment, thrust } = partner.genes[i];
-        newGenes[i] =  new Gene(adjustment, thrust);
+        childGenesTwo[i] = new Gene(this.genes[i].adjustment, this.genes[i].thrust);
+        childGenesOne[i] = new Gene(partner.genes[i].adjustment, partner.genes[i].thrust);
       }
     }
 
-    return new DNA(newGenes);
+    return [new DNA(childGenesOne), new DNA(childGenesTwo)];
   }
 
   mutate(mutationProbability) {
@@ -81,6 +82,7 @@ class Rocket {
     this.crashed = false;
     this.completed = false;
 
+    this.timeToCrash = 1;
     this.timeToComplete = 1;
 
     // Create a DOM element for the rocket.
@@ -127,6 +129,7 @@ class Rocket {
             && this.y < mission.asteroids[i].y + mission.asteroids[i].height / 2
         ) {
           this.crashed = true;
+          this.timeToCrash = mission.count;
         }
       }
 
@@ -163,11 +166,11 @@ class Rocket {
 
     // Adjust the rocket's fitness.
     if (this.crashed) {
-      this.fitness /= 4;
+      this.fitness /= ((1 / this.timeToComplete) * mission.lifeSpan);
     }
 
     if (this.completed) {
-      this.fitness *= ((1 / this.timeToComplete) * mission.lifeSpan) + 8;
+      this.fitness *= ((1 / this.timeToComplete) * mission.lifeSpan);
     }
   }
 
@@ -268,23 +271,24 @@ class Generation {
     // Make one rocket king of the generation and let him be parrent of all children.
     // evolvedRockets[0] = new Rocket(0, new DNA(this.fitestRocket.dna.genes));
 
-    for (let i = 0; i < this.populationSize; i++) {
+    for (let i = 0; i < this.populationSize; i += 2) {
 
       // Select two random parrents.
       const parrentOne = this.pickParrent(0);
       // const parrentOne = evolvedRockets[0];
       const parrentTwo = this.pickParrent(0);
 
-      let childDna;
+      let childrenDna;
 
       // Crossover the dna form the strongest to the weakest parerent. And add it to the dna set.
       if (parrentOne.fitness >= parrentTwo.fitness) {
-        childDna = parrentOne.dna.crossover(parrentTwo.dna, mission.crossoverProbability);
+        childrenDna = parrentOne.dna.crossover(parrentTwo.dna, mission.crossoverProbability);
       } else {
-        childDna = parrentTwo.dna.crossover(parrentOne.dna, mission.crossoverProbability);
+        childrenDna = parrentTwo.dna.crossover(parrentOne.dna, mission.crossoverProbability);
       }
 
-      evolvedRockets[i] = new Rocket(i, childDna);
+      evolvedRockets[i] = new Rocket(i, childrenDna[0]);
+      evolvedRockets[i + 1] = new Rocket(i, childrenDna[1]);
 
       // Mutate the new child based on the mutation probability.
       evolvedRockets[i].dna.mutate(this.mutationProbability);
@@ -555,10 +559,10 @@ let mission;
 saveSettings.addEventListener('click', () => {
   const lifeSpan = Number(document.querySelector('input[name="lifeSpan"]').value);
   const populationSize = Number(document.querySelector('input[name="populationSize"]').value);
-  const mutationProbelility = Number(document.querySelector('input[name="mutationProbelility"]').value);
+  const crossoverProbability = Number(document.querySelector('input[name="crossoverProbability"]').value);
 
 
-  mission = new Mission(target, lifeSpan, populationSize, mutationProbelility);
+  mission = new Mission(target, lifeSpan, populationSize, crossoverProbability);
   mission.initialize();
   settings.classList.add('settings_hidden');
   settingsSaved = true;
