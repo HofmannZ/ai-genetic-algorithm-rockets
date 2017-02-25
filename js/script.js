@@ -8,7 +8,7 @@ class Gene {
   }
 
   mutate() {
-    this.adjustment += Math.round((22.5 - Math.random() * 45) / 4);
+    this.adjustment += Math.round(22.5 - Math.random() * 45);
   }
 };
 
@@ -58,7 +58,7 @@ class DNA {
 
 /**
 *   Rocket   *
-*   Echt rocket has it's own DNA containing an array of objects with two properties:
+*   Each rocket has it's own DNA containing an array of objects with two properties:
 *   adjustment ( the adjustment angle of the rocket )
 *   and
 *   thrust ( the force of when propelled ).
@@ -74,7 +74,6 @@ class Rocket {
     this.height = 32;
 
     this.angle = 0;
-    this.totalAdjustments = [dna.genes[0].adjustment];
 
     this.dna = dna;
     this.fitness = 0;
@@ -82,8 +81,7 @@ class Rocket {
     this.crashed = false;
     this.completed = false;
 
-    this.timeToCrash = 1;
-    this.timeToComplete = 1;
+    this.timeLived = 1;
 
     // Create a DOM element for the rocket.
     this.element = document.createElement('img');
@@ -105,6 +103,7 @@ class Rocket {
 
   propel() {
     if (!this.crashed && !this.completed) {
+
       // Get the current gene from the dna.
       const currentGene = this.dna.genes[mission.count];
 
@@ -129,7 +128,7 @@ class Rocket {
             && this.y < mission.asteroids[i].y + mission.asteroids[i].height / 2
         ) {
           this.crashed = true;
-          this.timeToCrash = mission.count;
+          this.timeLived = mission.count;
         }
       }
 
@@ -139,15 +138,9 @@ class Rocket {
           && this.y < mission.target.y + mission.target.height / 2
       ) {
         this.completed = true;
-        this.timeToComplete = mission.count;
+        this.timeLived = mission.count;
       }
     }
-  }
-
-  totalAdjustment(geneIndex) {
-    this.totalAdjustments[geneIndex] = this.totalAdjustments[geneIndex - 1] + this.dna.genes[geneIndex].adjustment;
-
-    return this.totalAdjustments[geneIndex];
   }
 
   calculateFitness() {
@@ -162,15 +155,19 @@ class Rocket {
       yOffset *= -1;
     }
 
-    this.fitness = (window.innerWidth + window.innerHeight) - (xOffset + yOffset);
+    // Calculate the distance based on the Pythagorean theorem.
+    let currentOffset = Math.sqrt(Math.pow(xOffset, 2) + Math.pow(yOffset, 2));
 
-    // Adjust the rocket's fitness.
+    // Set high fitness when distance is low, and low fitness when distance is hight.
+    this.fitness = 1 / currentOffset;
+
+    // Adjust the rocket's fitness based on how well it completed the mission.
     if (this.crashed) {
-      this.fitness /= ((1 / this.timeToComplete) * mission.lifeSpan);
+      this.fitness /= (1 / this.timeLived) * mission.lifeSpan;
     }
 
     if (this.completed) {
-      this.fitness *= ((1 / this.timeToComplete) * mission.lifeSpan);
+      this.fitness *= (1 / this.timeLived) * mission.lifeSpan;
     }
   }
 
@@ -233,7 +230,8 @@ class Generation {
       totalFitness += this.rockets[i].fitness;
     }
 
-    this.averageFitness = (totalFitness / this.populationSize) / this.maxFitness * 100;
+    // The average fitness in percentage.
+    this.averageFitness = totalFitness / this.populationSize;
 
     for (i = 0; i < this.populationSize; i++) {
 
@@ -242,7 +240,7 @@ class Generation {
       this.rockets[i].fitness *= 100;
     }
 
-    this.mutationProbability = 1 / this.averageFitness -0.01;
+    this.mutationProbability = (1 / (this.averageFitness / this.maxFitness * 100)) - 0.01;
   }
 
   pickParrent(i) {
@@ -268,9 +266,6 @@ class Generation {
 
     this.evaluate();
 
-    // Make one rocket king of the generation and let him be parrent of all children.
-    // evolvedRockets[0] = new Rocket(0, new DNA(this.fitestRocket.dna.genes));
-
     for (let i = 0; i < this.populationSize; i += 2) {
 
       // Select two random parrents.
@@ -293,6 +288,9 @@ class Generation {
       // Mutate the new child based on the mutation probability.
       evolvedRockets[i].dna.mutate(this.mutationProbability);
     }
+
+    // Ensure that the best rocket returns to the new generation..
+    evolvedRockets[0] = new Rocket(0, new DNA(this.fitestRocket.dna.genes));
 
     this.rockets = evolvedRockets;
   }
@@ -372,8 +370,13 @@ class HUD {
 
     const averageFitness = document.createElement('p');
     averageFitness.classList.add('hud__item');
-    averageFitness.innerHTML = `Average fitness: ${mission.generation.averageFitness.toFixed(2)}%`;
+    averageFitness.innerHTML = `Average fitness: ${(mission.generation.averageFitness * 100).toFixed(3)}`;
     hud.appendChild(averageFitness);
+
+    const maxFitness = document.createElement('p');
+    maxFitness.classList.add('hud__item');
+    maxFitness.innerHTML = `Current highest fitness: ${(mission.generation.maxFitness * 100).toFixed(3)}`;
+    hud.appendChild(maxFitness);
 
     const populationSize = document.createElement('p');
     populationSize.classList.add('hud__item');
@@ -443,7 +446,7 @@ class Mission {
 
     this.populationSize = populationSize;
     this.generation;
-    this.generationCount = 1;
+    this.generationCount = 0;
 
     this.hud = new HUD();
 
@@ -463,8 +466,24 @@ class Mission {
     // Check if mission is completed.
     this.completed = this.generation.completed();
     if (this.completed) {
+
+      // Clear the DOM.
+      space.innerHTML = '';
+
+      // Setup the planets and astroids.
+      this.target.render();
+      this.earth.render();
+      for (let i = 0; i < this.asteroids.length; i++) {
+        this.asteroids[i].render();
+      }
+
+      // Re-render the generation.
+      this.generation.render();
+      this.generation.evaluate();
+
       // Update the HUD.
       this.hud.render();
+
       return true;
     }
 
@@ -490,7 +509,7 @@ class Mission {
       this.hud.render();
 
       // Run this method recursifly.
-      this.run();
+      setTimeout(this.run, 126);
     } else {
       // Propel all the rockets.
       this.generation.propel(this.count);
@@ -522,10 +541,10 @@ class Mission {
       this.asteroids[i].render();
     }
 
-    // Evolve the generation.
+    // Re-render the generation.
     this.generation.render();
 
-    // Update the HUD.
+    // Re-render the HUD.
     this.hud.render();
   }
 
